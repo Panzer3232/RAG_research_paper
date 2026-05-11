@@ -1,4 +1,4 @@
-# Relationship-Aware Research Paper Chunking Pipeline
+# Research Paper Chunking Pipeline
 
 This repository contains a research-paper chunking pipeline for structured OCR JSON files. It is designed for RAG preprocessing where each chunk should keep enough context, metadata, and source relationships to be useful during retrieval and answer generation.
 
