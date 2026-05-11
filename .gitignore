@@ -1,0 +1,44 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Local data and generated pipeline outputs
+chunk_files/
+normalized_files/
+outputs/
+logs/
+*.log
+
+# Large paper artifacts
+*.pdf
+images/
+
+# OS and editor files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Secrets and local config
+.env
+.env.*
+
+# OCR/pipeline JSON artifacts accidentally placed at repo root
+ocr__*.json
+_prepare_report.json
+_chunk_report.json
+_evaluation_report.json
+
+
