@@ -205,7 +205,7 @@ Additional metadata is added depending on the chunk type:
 - `figure`: `figure_caption`, `figure_caption_source`, `figure_group_size`, `image_paths`, `llm_caption_count`, `figure_reference_text_block_ids`
 - `prose`: `prose_part_index`, `prose_part_count`, `splitter_backend`
 
-## Why this is useful for RAG
+## Advatanges of using this pipeline for RAG
 
 The output is not just plain text chunks. Each chunk keeps enough source information to support grounded retrieval:
 
