@@ -86,29 +86,135 @@ def chunk_prose_blocks(
     next_ordinal: int,
     min_prose_tokens: int,
 ) -> tuple[list[dict[str, Any]], int]:
-    if not text_blocks:
+    clean_blocks = [
+        block
+        for block in text_blocks
+        if normalize_text(block.get("text"))
+    ]
+
+    if not clean_blocks:
         return [], next_ordinal
 
-    text = "\n\n".join(normalize_text(b.get("text")) for b in text_blocks if normalize_text(b.get("text"))).strip()
-    if not text:
-        return [], next_ordinal
+    chunk_units: list[dict[str, Any]] = []
+    current_blocks: list[dict[str, Any]] = []
 
-    raw_chunks = splitter.split(text)
-    chunks: list[dict[str, Any]] = []
-    for part_index, part in enumerate(raw_chunks):
-        part_text = normalize_text(part.text)
-        if not part_text:
+    def blocks_text(blocks: list[dict[str, Any]]) -> str:
+        return "\n\n".join(
+            normalize_text(block.get("text"))
+            for block in blocks
+            if normalize_text(block.get("text"))
+        ).strip()
+
+    def emit_current() -> None:
+        nonlocal current_blocks
+        if not current_blocks:
+            return
+
+        text = blocks_text(current_blocks)
+        if text:
+            chunk_units.append(
+                {
+                    "text": text,
+                    "blocks": current_blocks,
+                    "quality_flags": [],
+                }
+            )
+
+        current_blocks = []
+
+    def emit_split_single_block(block: dict[str, Any]) -> None:
+        text = normalize_text(block.get("text"))
+        if not text:
+            return
+
+        raw_parts = splitter.split(text)
+        parts = [normalize_text(part.text) for part in raw_parts if normalize_text(part.text)]
+
+        if not parts:
+            return
+
+        search_start = 0
+        for part_text in parts:
+            start = text.find(part_text, search_start)
+            if start < 0:
+                start = None
+                end = None
+            else:
+                end = start + len(part_text)
+                search_start = end
+
+            chunk_units.append(
+                {
+                    "text": part_text,
+                    "blocks": [block],
+                    "quality_flags": ["single_source_block_split"],
+                    "source_block_char_spans": [
+                        {
+                            "block_id": block.get("block_id"),
+                            "block_index": block.get("block_index"),
+                            "char_start": start,
+                            "char_end": end,
+                            "offset_basis": "normalized_text",
+                        }
+                    ],
+                }
+            )
+
+    for block in clean_blocks:
+        block_text = normalize_text(block.get("text"))
+        block_tokens = estimate_tokens(block_text)
+
+        if block_tokens > splitter.chunk_size_chars // 4:
+            emit_current()
+            emit_split_single_block(block)
             continue
+
+        candidate_blocks = current_blocks + [block]
+        candidate_text = blocks_text(candidate_blocks)
+
+        if current_blocks and estimate_tokens(candidate_text) > splitter.chunk_size_chars // 4:
+            emit_current()
+
+        current_blocks.append(block)
+
+    emit_current()
+
+    chunks: list[dict[str, Any]] = []
+    part_count = len(chunk_units)
+
+    for part_index, unit in enumerate(chunk_units):
+        part_text = unit["text"]
+        blocks = unit["blocks"]
+
         next_ordinal += 1
+
         extra = {
             "prose_part_index": part_index,
-            "prose_part_count": len(raw_chunks),
+            "prose_part_count": part_count,
             "splitter_backend": splitter.backend,
         }
-        chunk = make_chunk(paper_meta, section, text_blocks, "prose", part_text, next_ordinal, extra)
+
+        if "source_block_char_spans" in unit:
+            extra["source_block_char_spans"] = unit["source_block_char_spans"]
+
+        chunk = make_chunk(
+            paper_meta,
+            section,
+            blocks,
+            "prose",
+            part_text,
+            next_ordinal,
+            extra,
+        )
+
+        for flag in unit.get("quality_flags", []):
+            chunk["metadata"]["quality_flags"].append(flag)
+
         if estimate_tokens(part_text) < min_prose_tokens:
             chunk["metadata"]["quality_flags"].append("short_prose_candidate")
+
         chunks.append(chunk)
+
     return chunks, next_ordinal
 
 
